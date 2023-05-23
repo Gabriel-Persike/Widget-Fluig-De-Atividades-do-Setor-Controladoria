@@ -1,39 +1,25 @@
 var WidgetAtividadesControl = SuperWidget.extend({
     //método iniciado quando a widget é carregada
     init: function () {
+        intervalAutoRefresh = null;
+        LoadingCarregandoRelatorio = FLUIGC.loading('#divListaAtividades');
+
         setMesEAnoParaAtual();
-        CriaListaAtividadeControl();
-
+        ExecutaRelatorio();
+        setIntevaloDeExecucaoDoRelatorio(intervalAutoRefresh);
+        $("#panelFiltros .panel-body").hide();
         $("#MedicoesInseridas, #MedicoesAprovadas, #ParcelasAprovadas, #ContratosAditivosRescisoes, #EnvioDasMedicoes").hide();
-        $("#Relatorio, #MesFiltro, #AnoFiltro").on("change", function () {
-            var relatorio = $("#Relatorio").val();
-            $("#MedicoesInseridas, #MedicoesAprovadas, #ParcelasAprovadas, #ContratosAditivosRescisoes, #AtividadesControl, #EnvioDasMedicoes").hide();
-            if (relatorio == "Todas as Atividades") {
-                CriaListaAtividadeControl();
-                $("#AtividadesControl").show();
-            }
-            else if (relatorio == "Inserção de Medições") {
-                CriaListaDeMedicoesInseridas();
-                $("#MedicoesInseridas").show();
-            }
-            else if (relatorio == "Aprovação de Medição") {
-                CriaListaDeMedicoesAprovadas();
-                $("#MedicoesAprovadas").show();
-            }
-            else if (relatorio == "Aprovação de Parcelas(1.1.98)") {
-                CriaListaDeAprovacoesDeParcelas();
-                $("#ParcelasAprovadas").show();
-            }
-            else if (relatorio == "Contratos, Aditivos e Rescisões") {
-                CriaListaDeContratosAditivosRescisoes();
-                $("#ContratosAditivosRescisoes").show();
-            }
-            else if (relatorio == "Envio das Medições") {
-                CriaListaDeEnvioDasMedicoes();
-                $("#EnvioDasMedicoes").show();
-            }
-        });
 
+
+        $("#autoRefresh").on("change", function () {
+            setIntevaloDeExecucaoDoRelatorio(intervalAutoRefresh);
+        });
+        $("#panelFiltros .panel-heading").on("click", function () {
+            $("#panelFiltros .panel-body").slideToggle();
+        });
+        $("#Relatorio, #MesFiltro, #AnoFiltro").on("change", function () {
+            ExecutaRelatorio();
+        });
         $("#btnExportarDados").on("click", function () {
             ExportarDados();
         });
@@ -41,44 +27,106 @@ var WidgetAtividadesControl = SuperWidget.extend({
 });
 
 
+
+function setIntevaloDeExecucaoDoRelatorio(intervalAutoRefresh) {
+    clearInterval(intervalAutoRefresh);
+
+    if ($("#autoRefresh").val() != "Desativado") {
+        intervalAutoRefresh = setInterval(() => {
+            ExecutaRelatorio();
+        }, $("#autoRefresh").val() * 60 * 1000);
+    }
+}
+
+async function ExecutaRelatorio() {
+    LoadingCarregandoRelatorio.show();
+
+    var relatorio = $("#Relatorio").val();
+    $("#MedicoesInseridas, #MedicoesAprovadas, #ParcelasAprovadas, #ContratosAditivosRescisoes, #AtividadesControl, #EnvioDasMedicoes").hide();
+
+    if (relatorio == "Todas as Atividades") {
+        await CriaListaAtividadeControl();
+        $("#AtividadesControl").show();
+    }
+    else if (relatorio == "Inserção de Medições") {
+        await CriaListaDeMedicoesInseridas();
+        $("#MedicoesInseridas").show();
+    }
+    else if (relatorio == "Aprovação de Medição") {
+        await CriaListaDeMedicoesAprovadas();
+        $("#MedicoesAprovadas").show();
+    }
+    else if (relatorio == "Aprovação de Parcelas(1.1.98)") {
+        await CriaListaDeAprovacoesDeParcelas();
+        $("#ParcelasAprovadas").show();
+    }
+    else if (relatorio == "Contratos, Aditivos e Rescisões") {
+        await CriaListaDeContratosAditivosRescisoes();
+        $("#ContratosAditivosRescisoes").show();
+    }
+    else if (relatorio == "Envio das Medições") {
+        await CriaListaDeEnvioDasMedicoes();
+        $("#EnvioDasMedicoes").show();
+    }
+
+    LoadingCarregandoRelatorio.hide();
+}
+
 async function CriaListaAtividadeControl() {
     var ListaDeAtividades = await BuscaListagemDasAtividadesDaControladoria();
     var stringHTML = '';
 
-    stringHTML += 
-    "<tr>\
-        <td>Aprovação de Parcelas</td>\
+    const SeMostraColunaHoje = ValidaSeMesEAnoSaoOsAtuais();
+
+    stringHTML +=
+        "<tr>\
+        <td>Recebimento Fiscal</td>\
         <td>" + ListaDeAtividades[0].Parcelas + "</td>\
+        " + (SeMostraColunaHoje ? "<td>" + ListaDeAtividades[0].ParcelasHoje + "</td>" : "") + "\
     </tr>";
 
-    stringHTML += 
-    "<tr>\
+    stringHTML +=
+        "<tr>\
         <td>Medições Inseridas</td>\
         <td>" + ListaDeAtividades[0].MedicoesInseridas + "</td>\
+        " + (SeMostraColunaHoje ? "<td>" + ListaDeAtividades[0].MedicoesInseridasHoje + "</td>" : "") + "\
     </tr>";
 
-    stringHTML += 
-    "<tr>\
+    stringHTML +=
+        "<tr>\
         <td>Medições Aprovadas</td>\
         <td>" + ListaDeAtividades[0].MedicoesAprovadas + "</td>\
+        " + (SeMostraColunaHoje ? "<td>" + ListaDeAtividades[0].MedicoesAprovadasHoje + "</td>" : "") + "\
     </tr>";
 
-    stringHTML += 
-    "<tr>\
+    stringHTML +=
+        "<tr>\
         <td>Contratos, Aditivos e Rescisões</td>\
         <td>" + ListaDeAtividades[0].ContratosAditivosRescisoes + "</td>\
+        " + (SeMostraColunaHoje ? "<td>" + ListaDeAtividades[0].ContratosAditivosRescisoesHoje + "</td>" : "") + "\
     </tr>";
 
+
+    if (SeMostraColunaHoje) {
+        $("#columnHoje").show();
+    }
+    else {
+        $("#columnHoje").hide();
+    }
 
     $("#tbodyAtividadesControl").html(stringHTML);
 
     async function BuscaListagemDasAtividadesDaControladoria() {
-        var mes = $("#MesFiltro").val();
+        var mes = $("#MesFiltro").val().padStart(2, '0');
         var ano = $("#AnoFiltro").val();
+        var dia = new Date().getDate().toString().padStart(2, '0');
+
+
         return await ExecutaDataset("ListaAtividadesDaControladoriaNoFluig", null, [
             DatasetFactory.createConstraint("Operacao", "AtividadesControl", "AtividadesControl", ConstraintType.MUST),
             DatasetFactory.createConstraint("Mes", mes, mes, ConstraintType.MUST),
-            DatasetFactory.createConstraint("Ano", ano, ano, ConstraintType.MUST)
+            DatasetFactory.createConstraint("Ano", ano, ano, ConstraintType.MUST),
+            DatasetFactory.createConstraint("Dia", dia, dia, ConstraintType.MUST)
         ], null);
     }
 }
@@ -94,7 +142,6 @@ async function CriaListaDeMedicoesAprovadas() {
     }
 
     $("#tbodyMedicoesAprovadas").html(stringHTML);
-
     async function BuscaListagemDasAtividadesDaControladoria() {
         var mes = $("#MesFiltro").val();
         var ano = $("#AnoFiltro").val();
@@ -117,7 +164,6 @@ async function CriaListaDeMedicoesInseridas() {
     }
 
     $("#tbodyMedicoesInseridas").html(stringHTML);
-
     async function BuscaListagemDasAtividadesDaControladoria() {
         var mes = $("#MesFiltro").val();
         var ano = $("#AnoFiltro").val();
@@ -140,7 +186,6 @@ async function CriaListaDeAprovacoesDeParcelas() {
     }
 
     $("#tbodyParcelasAprovadas").html(stringHTML);
-
     async function BuscaListagemDasAtividadesDaControladoria() {
         var mes = $("#MesFiltro").val();
         var ano = $("#AnoFiltro").val();
@@ -165,7 +210,6 @@ async function CriaListaDeContratosAditivosRescisoes() {
     }
 
     $("#tbodyContratosAditivosRescisoes").html(stringHTML);
-
     async function BuscaListagemDasAtividadesDaControladoria() {
         var mes = $("#MesFiltro").val();
         var ano = $("#AnoFiltro").val();
@@ -177,7 +221,7 @@ async function CriaListaDeContratosAditivosRescisoes() {
     }
 }
 
-async function CriaListaDeEnvioDasMedicoes(){
+async function CriaListaDeEnvioDasMedicoes() {
     var ListaMedicoesEnviadas = await BuscaListagemDasAtividadesDaControladoria();
     var stringHTML = '';
     for (const Dia of ListaMedicoesEnviadas) {
@@ -190,7 +234,6 @@ async function CriaListaDeEnvioDasMedicoes(){
     }
 
     $("#tbodyEnvioDasMedicoes").html(stringHTML);
-
     async function BuscaListagemDasAtividadesDaControladoria() {
         var mes = $("#MesFiltro").val();
         var ano = $("#AnoFiltro").val();
@@ -289,4 +332,15 @@ function ExecutaDataset(DatasetName, Fields, Constraints, Order) {
             })
         })
     });
+}
+
+function ValidaSeMesEAnoSaoOsAtuais() {
+    var Mes = $("#MesFiltro").val();
+    var Ano = $("#AnoFiltro").val();
+    var dateNow = new Date();
+
+    if (parseInt(Mes) == (dateNow.getMonth() + 1) && parseInt(Ano) == dateNow.getFullYear()) {
+        return true;
+    }
+    return false;
 }
